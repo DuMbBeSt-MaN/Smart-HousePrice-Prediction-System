@@ -1,0 +1,70 @@
+/* Search Page - Inherits most styling from App.css */
+.search-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Mode Toggle */
+.mode-toggle {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+  margin-top: 1rem;
+}
+
+.mode-btn {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
+/* Natural Language Search Container */
+.natural-search-container {
+  margin-bottom: 2rem;
+}
+
+.natural-search-input {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid var(--text-secondary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+.natural-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
