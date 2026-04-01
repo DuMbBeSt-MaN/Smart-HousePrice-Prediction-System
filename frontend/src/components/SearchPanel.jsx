@@ -42,7 +42,7 @@ export default function SearchPanel({ stateValue, cityValue, profile, maxPrice, 
               <textarea
                 id="promptSearch"
                 className="natural-search-input"
-                placeholder="E.g., 'I'm looking for an affordable 2-bedroom apartment near parks in Austin, Texas under $1500/month' or 'Safe neighborhood in New York with good schools'"
+                placeholder="E.g., 'I'm looking for a 2 BHK apartment in Adyar, Chennai for rent near schools' or 'Affordable flat in Bandra Mumbai near hospitals'"
                 value={promptInput}
                 onChange={(e) => setPromptInput(e.target.value)}
                 rows="4"
@@ -108,9 +108,9 @@ export default function SearchPanel({ stateValue, cityValue, profile, maxPrice, 
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="maxPrice">Maximum Budget ($/month)</label>
+              <label className="form-label" htmlFor="maxPrice">Maximum Budget (₹/month)</label>
               <div className="input-wrapper">
-                <input type="number" id="maxPrice" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} placeholder="e.g., 1500" min="100" step="100" required />
+                <input type="number" id="maxPrice" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} placeholder="e.g., 25000" min="1000" step="1000" required />
               </div>
             </div>
 

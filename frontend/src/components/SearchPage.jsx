@@ -5,29 +5,22 @@ import ResultsPanel from './ResultsPanel'
 import { recommendHouses, searchFromText } from '../api'
 import './SearchPage.css'
 
-const STATES = ['California', 'Texas', 'Florida', 'New York', 'Pennsylvania', 'Illinois', 'Ohio', 'Georgia', 'North Carolina', 'Michigan', 'Virginia', 'Washington', 'Massachusetts', 'Tennessee', 'Arizona', 'Colorado', 'Minnesota', 'Missouri', 'Wisconsin', 'Maryland']
+const STATES = ['Andhra Pradesh', 'Delhi', 'Gujarat', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'West Bengal']
 
 const CITIES = {
-  'California': ['Los Angeles', 'San Francisco', 'San Diego', 'San Jose', 'Sacramento', 'Fresno', 'Long Beach'],
-  'Texas': ['Houston', 'Dallas', 'Austin', 'San Antonio', 'Fort Worth', 'El Paso'],
-  'Florida': ['Miami', 'Orlando', 'Tampa', 'Jacksonville', 'Fort Lauderdale'],
-  'New York': ['New York City', 'Buffalo', 'Rochester', 'Yonkers'],
-  'Pennsylvania': ['Philadelphia', 'Pittsburgh', 'Allentown'],
-  'Illinois': ['Chicago', 'Aurora', 'Rockford'],
-  'Ohio': ['Columbus', 'Cleveland', 'Cincinnati', 'Toledo'],
-  'Georgia': ['Atlanta', 'Savannah', 'Augusta'],
-  'North Carolina': ['Charlotte', 'Raleigh', 'Greensboro', 'Durham'],
-  'Michigan': ['Detroit', 'Grand Rapids', 'Ann Arbor'],
-  'Virginia': ['Richmond', 'Arlington', 'Alexandria'],
-  'Washington': ['Seattle', 'Tacoma', 'Vancouver'],
-  'Massachusetts': ['Boston', 'Cambridge', 'Worcester'],
-  'Tennessee': ['Memphis', 'Nashville', 'Knoxville'],
-  'Arizona': ['Phoenix', 'Tucson', 'Mesa'],
-  'Colorado': ['Denver', 'Colorado Springs', 'Aurora'],
-  'Minnesota': ['Minneapolis', 'St. Paul', 'Bloomington'],
-  'Missouri': ['Kansas City', 'St. Louis', 'Springfield'],
-  'Wisconsin': ['Milwaukee', 'Madison', 'Green Bay'],
-  'Maryland': ['Baltimore', 'Annapolis', 'Silver Spring']
+  'Andhra Pradesh': ['Visakhapatnam', 'Vijayawada', 'Guntur', 'Tirupati'],
+  'Delhi': ['New Delhi', 'Dwarka', 'Rohini', 'Saket', 'Lajpat Nagar'],
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot'],
+  'Karnataka': ['Bengaluru', 'Mysuru', 'Hubli', 'Mangaluru'],
+  'Kerala': ['Kochi', 'Thiruvananthapuram', 'Kozhikode', 'Thrissur'],
+  'Madhya Pradesh': ['Bhopal', 'Indore', 'Jabalpur', 'Gwalior'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Nashik', 'Thane', 'Navi Mumbai'],
+  'Punjab': ['Chandigarh', 'Ludhiana', 'Amritsar', 'Jalandhar'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Salem', 'Tiruchirappalli'],
+  'Telangana': ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Agra', 'Varanasi', 'Noida', 'Ghaziabad'],
+  'West Bengal': ['Kolkata', 'Howrah', 'Durgapur', 'Siliguri']
 }
 
 export default function SearchPage() {
@@ -78,44 +71,24 @@ export default function SearchPage() {
           return
         }
 
-        if (maxPrice < 500 || maxPrice > 10000) {
-          setError('Max price must be between $500 and $10,000')
-          setLoading(false)
-          return
-        }
-
-        // City coordinates
-        const cityCoords = {
-          'Los Angeles': { lat: 34.0522, lon: -118.2437 },
-          'San Francisco': { lat: 37.7749, lon: -122.4194 },
-          'Houston': { lat: 29.7604, lon: -95.3698 },
-          'Dallas': { lat: 32.7767, lon: -96.7970 },
-          'Austin': { lat: 30.2672, lon: -97.7431 },
-          'Miami': { lat: 25.7617, lon: -80.1918 },
-          'Orlando': { lat: 28.5421, lon: -81.3723 },
-          'New York City': { lat: 40.7128, lon: -74.0060 },
-          'Philadelphia': { lat: 39.9526, lon: -75.1652 },
-          'Chicago': { lat: 41.8781, lon: -87.6298 },
-          'Atlanta': { lat: 33.7490, lon: -84.3880 },
-          'Seattle': { lat: 47.6062, lon: -122.3321 },
-          'Boston': { lat: 42.3601, lon: -71.0589 },
-          'Denver': { lat: 39.7392, lon: -104.9903 },
-          'Phoenix': { lat: 33.4484, lon: -112.0742 }
-        }
-
-        const coords = cityCoords[city] || { lat: 34.0522, lon: -118.2437 }
-
         // Map profile to features
         const profileFeatures = {
-          'cheap_but_safe': ['cheap', 'safe', 'schools'],
-          'balanced': ['parks', 'schools', 'hospitals'],
-          'premium': ['parks', 'schools', 'hospitals']
+          'cheap_but_safe': ['affordable', 'safe', 'near schools'],
+          'balanced': ['near parks', 'near schools', 'near hospitals'],
+          'premium': ['near parks', 'near schools', 'near hospitals', 'premium']
         }
 
-        payload = {
-          location: coords,
-          features: profileFeatures[profile] || ['parks', 'schools']
-        }
+        // Use /parse to geocode the city+state via Google Maps
+        const parseResponse = await fetch("http://127.0.0.1:8000/parse", {
+          method: "POST",
+          mode: "cors",
+          credentials: "omit",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: `${profileFeatures[profile].join(', ')} in ${city}, ${state}` })
+        })
+
+        if (!parseResponse.ok) throw new Error(`Parse failed: ${parseResponse.status}`)
+        payload = await parseResponse.json()
       }
 
       // Search using payload

@@ -1,16 +1,7 @@
-from app.ingestion.listings_ingestor import ingest_listings
-from app.ingestion.env_ingestor import ingest_environment
-from app.storage.crud import (
-    get_listings_by_location,
-    is_location_stale
-)
+from app.ingestion.listings_ingestor import fetch_listings
+from app.ingestion.environment_ingestor import environment_signals
 
 def run_ingestion(lat, lon, loc_key):
-    if not is_location_stale(loc_key):
-        return
-
-    ingest_listings(lat, lon, loc_key)
-    listings = get_listings_by_location(loc_key)
-
+    listings = fetch_listings(lat, lon)
     for l in listings:
-        ingest_environment(l)
+        environment_signals(l["lat"], l["lon"])

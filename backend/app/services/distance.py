@@ -392,15 +392,13 @@ import requests
 import urllib.parse
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
-load_dotenv()
-# =========================
-# ENV
-# =========================
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
+
 RENTCAST_API_KEY = os.getenv("RENTCAST_API_KEY")
 RENTCAST_BASE_URL = "https://api.rentcast.io/v1/listings/sale"
 
-if not RENTCAST_API_KEY:
-    raise RuntimeError("RENTCAST_API_KEY not set")
+
 
 
 # =========================

@@ -1,53 +1,40 @@
 # app/ingestion/environment_ingestor.py
 
-# from app.services.overpass_client import query_overpass
+import os
+import requests
+from dotenv import load_dotenv
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
 
+PLACES_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 
-# def environment_signals(lat: float, lon: float) -> dict:
-#     """
-#     Environmental risk proxies using OpenStreetMap
-#     """
-
-#     radius = 2000  # meters
-
-#     water = query_overpass(f"""
-#         [out:json];
-#         way["natural"="water"](around:{radius},{lat},{lon});
-#         out;
-#     """)
-
-#     rivers = query_overpass(f"""
-#         [out:json];
-#         way["waterway"="river"](around:{radius},{lat},{lon});
-#         out;
-#     """)
-
-#     return {
-#         "water_bodies": len(water),
-#         "rivers_nearby": len(rivers)
-#     }
-# from app.services.overpass_client import query_overpass
-
-# def places_signals(lat: float, lon: float) -> dict:
-#     return {
-#         "schools": query_overpass(
-#             f'node["amenity"~"school|college|university"](around:1500,{lat},{lon});'
-#         ),
-#         "hospitals": query_overpass(
-#             f'node["amenity"="hospital"](around:3000,{lat},{lon});'
-#         ),
-#         "parks": query_overpass(
-#             f'way["leisure"="park"](around:1200,{lat},{lon});'
-#         )
-#     }
-from app.services.overpass_client import query_overpass
 
 def environment_signals(lat: float, lon: float) -> dict:
-    water = query_overpass(
-        f'way["natural"="water"](around:2500,{lat},{lon});'
-    )
+    GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_KEY")
+    """
+    Detect water bodies nearby using Google Maps Places API.
+    More water bodies = higher flood/water risk.
+    """
+    if not GOOGLE_MAPS_KEY:
+        print("[Env] GOOGLE_MAPS_KEY not set — returning neutral water_risk")
+        return {"water_risk": 0.0}
 
-    return {
-        # More water = higher flood potential
-        "water_risk": min(water / 10, 1.0)
-    }
+    try:
+        r = requests.get(
+            PLACES_URL,
+            params={
+                "location": f"{lat},{lon}",
+                "radius": 2500,
+                "keyword": "lake river pond water body",
+                "key": GOOGLE_MAPS_KEY,
+            },
+            timeout=10
+        )
+        r.raise_for_status()
+        count = len(r.json().get("results", []))
+        water_risk = min(count / 10.0, 1.0)
+        print(f"[Env-Google] water bodies nearby={count}, water_risk={water_risk:.2f}")
+        return {"water_risk": water_risk}
+    except Exception as e:
+        print(f"[Env] Failed: {e}")
+        return {"water_risk": 0.0}

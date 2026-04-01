@@ -2,82 +2,45 @@
 
 import os
 import re
+import json
 import requests
 from dotenv import load_dotenv
-load_dotenv()
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
 
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY")
-GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_KEY")
-SCRAPINGBEE_URL = "https://app.scrapingbee.com/api/v1/"
+SCRAPINGBEE_URL     = "https://app.scrapingbee.com/api/v1/"
 
 
-def _geocode_to_area(lat: float, lon: float) -> str:
-    """Use Google Geocoding (if key available) or Nominatim to get locality name for scraping."""
-    if GOOGLE_MAPS_KEY:
-        r = requests.get(
-            "https://maps.googleapis.com/maps/api/geocode/json",
-            params={"latlng": f"{lat},{lon}", "key": GOOGLE_MAPS_KEY},
-            timeout=10
-        )
-        results = r.json().get("results", [])
-        if results:
-            # Extract locality + city from address components
-            components = results[0].get("address_components", [])
-            locality = next((c["long_name"] for c in components if "sublocality" in c["types"] or "locality" in c["types"]), None)
-            city = next((c["long_name"] for c in components if "administrative_area_level_2" in c["types"]), None)
-            area = locality or city or results[0].get("formatted_address", "")
-            print(f"[Geocode] lat={lat}, lon={lon} → area='{area}'")
-            return area
-    else:
-        # Fallback: Nominatim
-        r = requests.get(
-            "https://nominatim.openstreetmap.org/reverse",
-            params={"lat": lat, "lon": lon, "format": "json"},
-            headers={"User-Agent": "housing-prices-app"},
-            timeout=10
-        )
-        data = r.json()
-        addr = data.get("address", {})
-        area = addr.get("suburb") or addr.get("city_district") or addr.get("city") or addr.get("town") or ""
-        print(f"[Geocode-Nominatim] lat={lat}, lon={lon} → area='{area}'")
-        return area
+def _build_magicbricks_url(area_name: str, city: str) -> str:
+    """
+    Build MagicBricks rental search URL.
+    e.g. area=Adyar, city=Chennai -> flats-for-rent-in-adyar-chennai-pppfr
+    """
+    parts = [p.lower().replace(" ", "-") for p in [area_name, city] if p.strip()]
+    slug  = "-".join(parts)
+    return f"https://www.magicbricks.com/flats-for-rent-in-{slug}-pppfr"
 
 
-def _parse_price_inr(price_str: str) -> float | None:
-    """Convert Indian price strings like '₹45 Lac', '1.2 Cr' to float (in INR)."""
-    if not price_str:
-        return None
-    s = price_str.replace(",", "").replace("₹", "").strip().lower()
-    try:
-        if "cr" in s:
-            return float(re.sub(r"[^\d.]", "", s)) * 1_00_00_000
-        elif "lac" in s or "lakh" in s or "l" in s:
-            return float(re.sub(r"[^\d.]", "", s)) * 1_00_000
-        else:
-            return float(re.sub(r"[^\d.]", "", s))
-    except Exception:
-        return None
-
-
-def _scrape_99acres(area: str, limit: int = 5) -> list[dict]:
-    """Scrape 99acres property listings for a given area using ScrapingBee."""
+def _scrape_magicbricks(url: str, prices: list[int], limit: int) -> list[dict]:
+    """
+    Scrape MagicBricks listing page via ScrapingBee (no JS rendering needed).
+    Parses structured JSON-LD data embedded in the page — no fragile regex.
+    """
     if not SCRAPINGBEE_API_KEY:
-        print("[ScrapingBee] SCRAPINGBEE_API_KEY not set — returning empty listings")
+        print("[ScrapingBee] SCRAPINGBEE_API_KEY not set")
         return []
 
-    search_area = area.lower().replace(" ", "-")
-    target_url = f"https://www.99acres.com/property-for-sale-in-{search_area}-ffid"
-
-    print(f"[ScrapingBee] Scraping: {target_url}")
-
+    print(f"[ScrapingBee] Scraping: {url}")
     try:
         r = requests.get(
             SCRAPINGBEE_URL,
             params={
-                "api_key": SCRAPINGBEE_API_KEY,
-                "url": target_url,
-                "render_js": "false",
-                "premium_proxy": "true",
+                "api_key":      SCRAPINGBEE_API_KEY,
+                "url":          url,
+                "render_js":    "false",   # MagicBricks serves JSON-LD in static HTML
+                "premium_proxy":"true",
+                "country_code": "in",
             },
             timeout=60
         )
@@ -87,65 +50,89 @@ def _scrape_99acres(area: str, limit: int = 5) -> list[dict]:
         print(f"[ScrapingBee] Request failed: {e}")
         return []
 
+    print(f"[ScrapingBee] HTML length: {len(html)} chars")
+
+    # Extract all JSON-LD blocks
+    json_blocks = re.findall(
+        r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+        html, re.DOTALL
+    )
+
+    # Extract prices separately (they appear as "price": "170000" in the page)
+    raw_prices = re.findall(r'"price"\s*:\s*"?(\d+)"?', html)
+    price_list = [int(p) for p in raw_prices]
+
+    apartments = []
+    for block in json_blocks:
+        try:
+            data = json.loads(block.strip())
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                if item.get("@type") == "Apartment":
+                    apartments.append(item)
+        except Exception:
+            continue
+
+    print(f"[MagicBricks] Found {len(apartments)} apartment listings, {len(price_list)} prices")
+
     listings = []
+    for i, apt in enumerate(apartments[:limit]):
+        geo     = apt.get("geo", {})
+        address = apt.get("address", {})
+        name    = apt.get("name", "")
+        url_    = apt.get("url") or apt.get("@id", "")
+        image   = apt.get("image", "")
+        rooms   = apt.get("numberOfRooms")
 
-    # Extract listing blocks — 99acres uses data-label or card patterns
-    # Parse title, price, address from HTML using regex (no BS4 dependency)
-    titles = re.findall(r'data-label="[^"]*"[^>]*>([^<]{5,80})</[^>]+>', html)
-    prices = re.findall(r'(₹[\d.,]+\s*(?:Cr|Lac|Lakh|L)?)', html, re.IGNORECASE)
-    addresses = re.findall(r'(?:locality|address)[^>]*>([^<]{5,100})<', html, re.IGNORECASE)
+        lat = float(geo["latitude"])  if geo.get("latitude")  else None
+        lon = float(geo["longitude"]) if geo.get("longitude") else None
 
-    print(f"[ScrapingBee] Raw parse → titles={len(titles)}, prices={len(prices)}, addresses={len(addresses)}")
+        # Extract sqft from URL slug e.g. "3-BHK-1926-Sq-ft-..."
+        sqft_match = re.search(r'(\d+)-Sq-ft', url_, re.IGNORECASE)
+        sqft = int(sqft_match.group(1)) if sqft_match else None
 
-    for i in range(min(limit, max(len(titles), len(prices), 1))):
-        title = titles[i] if i < len(titles) else f"Property in {area}"
-        price_str = prices[i] if i < len(prices) else None
-        address = addresses[i] if i < len(addresses) else area
-        price_val = _parse_price_inr(price_str)
+        price = price_list[i] if i < len(price_list) else None
 
         listing = {
-            "external_id": f"99acres_{area}_{i}",
-            "source": "99acres_scrapingbee",
-            "title": title.strip(),
-            "price": price_val,
-            "price_display": price_str,
-            "beds": None,
-            "baths": None,
-            "sqft": None,
-            "year_built": None,
+            "external_id":   f"mb_{i}_{apt.get('@id','')[-10:]}",
+            "source":        "magicbricks",
+            "title":         name,
+            "price":         price,
+            "price_display": f"Rs. {price:,}/month" if price else None,
+            "beds":          int(rooms) if rooms else None,
+            "sqft":          sqft,
+            "baths":         None,
+            "year_built":    None,
             "property_type": "residential",
-            "lat": None,   # individual listing lat/lon not available from list page
-            "lon": None,
-            "address": address.strip(),
-            "city": area,
-            "state": None,
-            "zip": None,
-            "signals": {},
-            "scores": {},
-            "final_score": None
+            "lat":           lat,
+            "lon":           lon,
+            "address":       f"{address.get('addressLocality', '')}, {address.get('addressRegion', '')}".strip(", "),
+            "city":          address.get("addressRegion", ""),
+            "state":         None,
+            "image":         image,
+            "listing_url":   url_,
+            "signals":       {},
+            "scores":        {},
+            "final_score":   None,
         }
-        print(f"[Listing {i+1}] title='{listing['title']}' price='{price_str}' address='{listing['address']}'")
+        print(f"[Listing {i+1}] {name} | Rs.{price}/mo | lat={lat}, lon={lon} | sqft={sqft}")
         listings.append(listing)
 
     return listings
 
 
-def fetch_listings(lat: float, lon: float, limit: int = 5) -> list[dict]:
+def fetch_listings(lat: float, lon: float, limit: int = 5,
+                   area_name: str = "", city: str = "") -> list[dict]:
     """
-    Main entry point. Resolves lat/lon to an area name, then scrapes 99acres.
-    Falls back to using the area centroid lat/lon for all listings (for OSM signals).
+    Build MagicBricks URL from area_name + city, scrape via ScrapingBee.
+    Each listing gets its own lat/lon from JSON-LD geo data.
+    Falls back to search-area coords if listing has no geo.
     """
-    area = _geocode_to_area(lat, lon)
-    if not area:
-        print(f"[fetch_listings] Could not resolve area for lat={lat}, lon={lon}")
-        area = "mumbai"  # safe fallback
+    url      = _build_magicbricks_url(area_name, city)
+    listings = _scrape_magicbricks(url, [], limit=limit)
 
-    listings = _scrape_99acres(area, limit=limit)
-
-    # Assign the search lat/lon to listings that don't have their own coords
-    # so OSM signals can still be computed for the general area
     for l in listings:
-        if l["lat"] is None:
+        if l["lat"] is None and lat is not None:
             l["lat"] = lat
             l["lon"] = lon
 
