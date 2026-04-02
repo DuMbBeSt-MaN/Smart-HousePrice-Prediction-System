@@ -73,6 +73,7 @@ except Exception:
 
 from app.agents.planner_agent import PlannerAgent
 from app.services.geocoding import geocode_or_default
+from app.storage.crud import get_cached, save_cached
 
 
 class RawTextPayload(BaseModel):
@@ -100,10 +101,29 @@ def search(payload: dict):
     location = payload["location"]
     features = payload.get("features", [])
 
+    # Create cache key
+    lat = location.get("lat")
+    lon = location.get("lon")
+    if lat is None or lon is None:
+        raise HTTPException(status_code=400, detail="Latitude / Longitude required")
+    
+    location_key = f"{lat:.6f},{lon:.6f}"
+    
+    # Check cache first
+    cached = get_cached(location_key, features)
+    if cached:
+        print(f"[Cache] HIT for {location_key} with features {features}")
+        return cached.result_json
+    
+    # Cache miss - run planner
+    print(f"[Cache] MISS for {location_key} with features {features}")
     results = planner.run(
         payload=payload
     )
-
+    
+    # Save to cache
+    save_cached(location_key, features, results)
+    
     return results
 
 
