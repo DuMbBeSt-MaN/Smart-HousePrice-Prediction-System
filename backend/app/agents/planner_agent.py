@@ -35,7 +35,11 @@ class PlannerAgent:
         t1 = time.time()
         print(f"[Intent] {intent}")
 
-        listings = fetch_listings(lat, lon, limit=5, area_name=area_name, city=city)
+        bhk       = payload.get("bhk")
+        max_price = payload.get("max_price")
+
+        listings = fetch_listings(lat, lon, limit=5, area_name=area_name, city=city,
+                                  bhk=bhk, max_price=max_price)
         t2 = time.time()
         print(f"[Listings] fetched {len(listings)}")
 
@@ -66,10 +70,11 @@ class PlannerAgent:
         for i, l in enumerate(listings):
             scores = dict(area_scores)
 
-            # Price score — monthly rent in INR (Rs.20K–Rs.5L range)
+            # Price score — use max_price as ceiling if provided, else Rs.5L
+            price_ceiling = max_price if max_price else 500_000
             price = l.get("price")
             if price and price > 0:
-                scores["price"] = max(0.0, 1.0 - min(price / 500_000, 1.0))
+                scores["price"] = max(0.0, 1.0 - min(price / price_ceiling, 1.0))
             else:
                 scores["price"] = 0.5
 

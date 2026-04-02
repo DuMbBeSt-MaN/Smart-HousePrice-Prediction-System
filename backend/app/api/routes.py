@@ -67,6 +67,8 @@ Extract the following from the user's query and return ONLY a valid JSON object 
 - "city": city name. Empty string if not mentioned.
 - "state": Indian state, infer from city if needed.
 - "features": array of short strings (e.g. ["2 BHK", "for rent", "near schools"]).
+- "bhk": integer number of BHK (e.g. 2 for "2 BHK"). null if not mentioned.
+- "max_price": maximum monthly rent in INR as integer (e.g. 30000 for "under 30,000"). null if not mentioned.
 
 User query: {text}
 
@@ -128,12 +130,17 @@ async def parse_input(request: Request):
         if coords["lat"] is None:
             raise HTTPException(status_code=400, detail=f"Could not geocode '{geocode_query}'")
 
+        bhk       = parsed.get("bhk")
+        max_price = parsed.get("max_price")
+
         return {
             "location":  coords,
             "area_name": area_name,
             "city":      city,
             "state":     state,
-            "features":  features
+            "features":  features,
+            "bhk":       bhk,
+            "max_price": max_price,
         }
 
     except HTTPException:

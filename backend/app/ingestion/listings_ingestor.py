@@ -122,18 +122,25 @@ def _scrape_magicbricks(url: str, prices: list[int], limit: int) -> list[dict]:
 
 
 def fetch_listings(lat: float, lon: float, limit: int = 5,
-                   area_name: str = "", city: str = "") -> list[dict]:
+                   area_name: str = "", city: str = "",
+                   bhk: int = None, max_price: int = None) -> list[dict]:
     """
     Build MagicBricks URL from area_name + city, scrape via ScrapingBee.
-    Each listing gets its own lat/lon from JSON-LD geo data.
-    Falls back to search-area coords if listing has no geo.
+    Filters by bhk and max_price if provided.
     """
     url      = _build_magicbricks_url(area_name, city)
-    listings = _scrape_magicbricks(url, [], limit=limit)
+    listings = _scrape_magicbricks(url, [], limit=limit * 5)  # fetch more to allow filtering
 
     for l in listings:
         if l["lat"] is None and lat is not None:
             l["lat"] = lat
             l["lon"] = lon
 
-    return listings
+    if bhk is not None:
+        listings = [l for l in listings if l.get("beds") == bhk or
+                    (l.get("title") and f"{bhk} BHK" in l["title"])]
+
+    if max_price is not None:
+        listings = [l for l in listings if l.get("price") and l["price"] <= max_price]
+
+    return listings[:limit]
