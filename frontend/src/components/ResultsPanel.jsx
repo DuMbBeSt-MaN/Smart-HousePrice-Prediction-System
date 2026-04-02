@@ -51,7 +51,7 @@ export default function ResultsPanel({ results, loading, error }) {
                 const scorePercent = Math.min(100, Math.max(0, score * 100))
                 const beds = house.beds || house.bedrooms || 2
                 const sqft = house.sqft || house.area_sqft || 850
-                const price = house.price || 0
+                const price = Math.round(house.price / 100) || house.price
                 const imageUrl = house.image || null
 
                 return (
@@ -70,7 +70,7 @@ export default function ResultsPanel({ results, loading, error }) {
                     </div>
                     <div className="result-content">
                       {index === 0 && <span className="result-badge">Best Match</span>}
-                      <div className="result-price">₹{house.price_display ? house.price_display.replace('Rs. ', '').replace('/month', '') : price.toLocaleString('en-IN')}<span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif" }}>/month</span></div>
+                      <div className="result-price">${price.toLocaleString()}<span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif" }}>/month</span></div>
                       
                       <div className="result-details">
                         <div className="detail-item">

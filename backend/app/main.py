@@ -24,6 +24,7 @@ app.add_middleware(
         "http://localhost:5173",      # Vite default
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "https://your-vercel-app.vercel.app",  # Replace with your actual Vercel domain
     ],
     allow_credentials=False,          # Changed to False to allow any origin in list
     allow_methods=["*"],
